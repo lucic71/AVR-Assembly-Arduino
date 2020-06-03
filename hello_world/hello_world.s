@@ -36,9 +36,15 @@ MAIN:
     ldi r16, hi8(RAMEND)
     out SPH, r16
 
-    ; Set port bits to output mode. We will use LED 5, so we need to set the fifth bit
-    ; in DDRB (Data Direction Register B). Check this link for more details:
+    ; Set port bits to output mode. We will use BUILTIN_LED, so we need to set 
+    ; the fifth bit in DDRB (Data Direction Register B). Check this link for 
+    ; more details:
     ; https://web.ics.purdue.edu/~jricha14/Port_Stuff/PortB_general.htm [3]
+    ;
+    ; Also an important thing to note is that PORTB handles digital PINs from
+    ; 8 to 13 so by setting the fifth bit of DDRB actually sets PIN 13 for
+    ; output:
+    ; https://www.arduino.cc/en/Reference/PortManipulation
 
     ldi r16, 0x20
     out DDRB, r16
