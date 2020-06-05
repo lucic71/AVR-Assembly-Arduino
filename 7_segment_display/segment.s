@@ -21,7 +21,8 @@
 .equiv DBIT, 20
 .equiv RESULT, 21
 .equiv TEMP1, 22
-.equiv TEMP2, 23
+.equiv EOREG, 23
+.equiv PINCONFIG, 30
 
 .org 0x0000
 
@@ -66,8 +67,6 @@ COUNTER:
     call ENCODE
 
     call WAIT
-    call WAIT
-    call WAIT
 
     inc r16
     cpi r16, 0x0A
@@ -76,6 +75,14 @@ COUNTER:
     rjmp LOOP
 
 ENCODE:
+
+    ; Reset PINCONFIG and RESULT registers.
+
+    clr PINCONFIG
+    clr RESULT
+
+    out PORTD, PINCONFIG
+    call WAIT
 
     ; Description:
     ; -----------
@@ -97,36 +104,38 @@ ENCODE:
     ;  PIN. Other registers will be used to extract the bits from the binary
     ;  number and to perform logic operations.
 
-    mov ABIT, r24
-    andi ABIT, 0x01
-
-    mov BBIT, r24
-    asr BBIT
-    andi BBIT, 0x01
+    mov DBIT, r24
+    andi DBIT, 0x01
 
     mov CBIT, r24
     asr CBIT
-    asr CBIT
     andi CBIT, 0x01
 
-    mov DBIT, r24
-    asr DBIT
-    asr DBIT
-    asr DBIT
+    mov BBIT, r24
+    asr BBIT
+    asr BBIT
+    andi BBIT, 0x01
 
-    ; TEMP2 will be used for eor'ing with register TEMP1 or RESULT
+    mov ABIT, r24
+    asr ABIT
+    asr ABIT
+    asr ABIT
+
+    ; EOREG will be used for eor'ing with register TEMP1 or RESULT
     ; It is equivalent with flipping the bit in TEMP1 or RESULT.
 
-    ldi TEMP2, 0x01
+    ldi EOREG, 0x01
 
     ; Compute a. Steps:
     ;
     ; 1. Move A in RESULT
     ; 2. Perform RESULT = RESULT + C
     ; 3. Compute DB using TEMP1 and perform RESULT = RESULT + BD
-    ; 4. Compute !D!B = !(D + B) using TEMP1 and TEMP2 and perform 
+    ; 4. Compute !D!B = !(D + B) using TEMP1 and EOREG and perform 
     ;       RESULT = RESULT + !B!D.
     ; 5. Write RESULT to DIGITAL PIN 0
+
+COMPUTEA:
 
     mov RESULT, ABIT
 
@@ -138,25 +147,26 @@ ENCODE:
 
     mov TEMP1, BBIT
     or TEMP1, DBIT
-    eor TEMP1, TEMP2
-    and RESULT, TEMP1
+    eor TEMP1, EOREG
+    or RESULT, TEMP1
 
-    out PORTD, RESULT
-    call WAIT
+    or PINCONFIG, RESULT
 
     ; Compute b. Steps:
     ;
     ; 1. Move B in RESULT and invert the bits.
-    ; 2. Compute !C!D using TEMP1 and TEMP2 and perform RESULT = RESULT + !C!D
+    ; 2. Compute !C!D using TEMP1 and EOREG and perform RESULT = RESULT + !C!D
     ; 3. Compute CD using TEMP1 and perform RESULT = RESULT + CD
     ; 4. Write RESULT to DIGITAL PIN 1
 
+COMPUTEB:
+
     mov RESULT, BBIT
-    eor RESULT, TEMP2
+    eor RESULT, EOREG
 
     mov TEMP1, CBIT
     or TEMP1, DBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     or RESULT, TEMP1
 
     mov TEMP1, CBIT
@@ -166,8 +176,7 @@ ENCODE:
     clc
     rol RESULT
 
-    out PORTD, RESULT
-    call WAIT
+    or PINCONFIG, RESULT
 
     ; Compute c. Steps:
     ;
@@ -176,10 +185,12 @@ ENCODE:
     ; 3. Perform RESULT = RESULT + D
     ; 4. Write RESULT to DIGITAL PIN 2
 
+COMPUTEC:
+
     mov RESULT, BBIT
 
     mov TEMP1, CBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     or RESULT, TEMP1
 
     or RESULT, DBIT
@@ -190,8 +201,7 @@ ENCODE:
     clc
     rol RESULT
 
-    out PORTD, RESULT
-    call WAIT
+    or PINCONFIG, RESULT
 
     ; Compute d. Steps:
     ;
@@ -202,26 +212,28 @@ ENCODE:
     ; 5. Perform RESULT = RESULT + !BC
     ; 6. Write RESULT to DIGITAL PIN 3
 
+COMPUTED:
+
     mov RESULT, ABIT
 
     mov TEMP1, BBIT
     or TEMP1, DBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     or RESULT, TEMP1
 
     mov TEMP1, DBIT
-    eor TEMP1, TEMP2
-    or TEMP1, CBIT
+    eor TEMP1, EOREG
+    and TEMP1, CBIT
     or RESULT, TEMP1
 
     mov TEMP1, CBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     and TEMP1, BBIT
     and TEMP1, DBIT
     or RESULT, TEMP1
 
     mov TEMP1, BBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     and TEMP1, CBIT
     or RESULT, TEMP1
 
@@ -234,8 +246,7 @@ ENCODE:
     clc
     rol RESULT
 
-    out PORTD, RESULT
-    call WAIT
+    or PINCONFIG, RESULT
 
     ; Compute e. Steps:
     ;
@@ -243,13 +254,15 @@ ENCODE:
     ; 2. Compute RESULT = RESULT + !B!D
     ; 3. Write RESULT to DIGITAL PIN 4
 
+COMPUTEE:
+
     mov RESULT, DBIT
-    eor RESULT, TEMP2
+    eor RESULT, EOREG
     and RESULT, CBIT
 
     mov TEMP1, BBIT
     or TEMP1, DBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     or RESULT, TEMP1
 
     clc
@@ -264,8 +277,7 @@ ENCODE:
     clc
     rol RESULT
 
-    out PORTD, RESULT
-    call WAIT
+    or PINCONFIG, RESULT
 
     ; Compute f. Steps:
     ;
@@ -275,20 +287,22 @@ ENCODE:
     ; 4. Compute RESULT = RESULT + B!D
     ; 5. Write RESULT to DIGITAL PIN 5
 
+COMPUTEF:
+
     mov RESULT, ABIT
 
     mov TEMP1, CBIT
     or TEMP1, DBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     or RESULT, TEMP1
 
     mov TEMP1, CBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     and TEMP1, BBIT
     or RESULT, TEMP1
 
     mov TEMP1, DBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     and TEMP1, BBIT
     or RESULT, TEMP1
 
@@ -307,8 +321,7 @@ ENCODE:
     clc
     rol RESULT
 
-    out PORTD, RESULT
-    call WAIT
+    or PINCONFIG, RESULT
 
     ; Compute g. Steps:
     ;
@@ -318,17 +331,19 @@ ENCODE:
     ; 4. Compute RESULT = RESULT + A
     ; 5. Write RESULT to DIGITAL PIN 6
 
+COMPUTEG:
+
     mov RESULT, CBIT
-    eor RESULT, TEMP2
+    eor RESULT, EOREG
     and RESULT, BBIT
 
     mov TEMP1, BBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     and TEMP1, CBIT
     or RESULT, TEMP1
 
     mov TEMP1, DBIT
-    eor TEMP1, TEMP2
+    eor TEMP1, EOREG
     and TEMP1, CBIT
     or RESULT, TEMP1
 
@@ -352,8 +367,11 @@ ENCODE:
     clc
     rol RESULT
 
-    out PORTD, RESULT
-    call WAIT
+    or PINCONFIG, RESULT
+
+WRITE_RESULT:
+
+    out PORTD, PINCONFIG
 
     ret
 
@@ -365,7 +383,7 @@ WAIT:
     ;  Loop 0x400000 times which takes approximately 12 milion cycles which is
     ;  approximately 0.7s.
 
-    ldi r17, 0x10
+    ldi r17, 0x20
     ldi r18, 0x00
     ldi r19, 0x00
 
