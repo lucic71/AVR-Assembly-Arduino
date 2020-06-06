@@ -13,15 +13,21 @@
 .equ PORTD, 0x0B
 .equ DDRD,  0x0A
 
-; Aliases for registers. It is easier to develop the logic this way.
+; Aliases for registers. ABIT, BBIT, CBIT, DBIT contain the bits in the binary
+; representation of numbers displayed on the 7 segment display. A is the MSB
+; and D is the LSB. RESULT, TEMP1 and EOREG are registers used when computing
+; the boolean functions for each PIN. PINCONFIG is the register that decides
+; which PINs are set when sending voltage to the 7 segment display.
 
 .equiv ABIT, 17
 .equiv BBIT, 18
 .equiv CBIT, 19
 .equiv DBIT, 20
+
 .equiv RESULT, 21
 .equiv TEMP1, 22
 .equiv EOREG, 23
+
 .equiv PINCONFIG, 30
 
 .org 0x0000
@@ -81,14 +87,17 @@ ENCODE:
     clr PINCONFIG
     clr RESULT
 
+    ; Output a blank screen to put some delay between digits, it looks smoother
+    ; this way.
+
     out PORTD, PINCONFIG
     call WAIT
 
     ; Description:
     ; -----------
     ;
-    ;  To represent a digit we will use a 4 bit number looking like this DCBA
-    ;  (A is the LSB and D is the MSB). The equations for the 7 segment display
+    ;  To represent a digit we will use a 4 bit number looking like this ABCD
+    ;  (A is the MSB and D is the LSB). The equations for the 7 segment display
     ;  PINs are the following, they can be easily computed using Karnaugh 
     ;  Diagrams:
     ;  
@@ -120,6 +129,12 @@ ENCODE:
     asr ABIT
     asr ABIT
     asr ABIT
+
+    ; After shifting each bit in its corresponding register, clear carry flag
+    ; because we will perform multiple ROL's and don't want any additional
+    ; bit coming from Carry in RESULT.
+
+    clc
 
     ; EOREG will be used for eor'ing with register TEMP1 or RESULT
     ; It is equivalent with flipping the bit in TEMP1 or RESULT.
@@ -173,7 +188,6 @@ COMPUTEB:
     and TEMP1, DBIT
     or RESULT, TEMP1
 
-    clc
     rol RESULT
 
     or PINCONFIG, RESULT
@@ -195,10 +209,7 @@ COMPUTEC:
 
     or RESULT, DBIT
 
-    clc
     rol RESULT
-
-    clc
     rol RESULT
 
     or PINCONFIG, RESULT
@@ -237,13 +248,8 @@ COMPUTED:
     and TEMP1, CBIT
     or RESULT, TEMP1
 
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
 
     or PINCONFIG, RESULT
@@ -265,16 +271,9 @@ COMPUTEE:
     eor TEMP1, EOREG
     or RESULT, TEMP1
 
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
 
     or PINCONFIG, RESULT
@@ -306,19 +305,10 @@ COMPUTEF:
     and TEMP1, BBIT
     or RESULT, TEMP1
 
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
 
     or PINCONFIG, RESULT
@@ -349,22 +339,11 @@ COMPUTEG:
 
     or RESULT, ABIT
 
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
-
-    clc
     rol RESULT
 
     or PINCONFIG, RESULT
@@ -380,10 +359,13 @@ WAIT:
     ; Description
     ; -----------
     ;
-    ;  Loop 0x400000 times which takes approximately 12 milion cycles which is
-    ;  approximately 0.7s.
+    ; Loop 0x{r17, r18, r19} times (for example 0x300000) times because the
+    ; internal clock of the board is to fast and the digits cannot be seen.
+    ; We know that 0x400000 iterations take approximately 0.7s so we can make
+    ; further calcualtions based on this (or by looking in the instruction set
+    ; at the clock cycles taken by each instruction used in the loop).
 
-    ldi r17, 0x20
+    ldi r17, 0x30
     ldi r18, 0x00
     ldi r19, 0x00
 
